@@ -1,0 +1,31 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: vm-credentials
+
+steps:
+  # Build the Maven project
+  - task: Maven@4
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'package'
+    displayName: "Build Maven App"
+
+  # Deploy to Azure VM using password SSH
+  - script: |
+      echo "Installing sshpass..."
+      sudo apt-get update -y
+      sudo apt-get install -y sshpass
+
+      echo "Deploying to VM..."
+      sshpass -p "$(VM_PASSWORD)" scp -o StrictHostKeyChecking=no target/maven-hello-azure-1.0-SNAPSHOT.jar $(VM_USER)@$(VM_HOST):/home/$(VM_USER)/app/hello.jar
+
+      echo "Running app on VM..."
+      sshpass -p "$(VM_PASSWORD)" ssh -o StrictHostKeyChecking=no $(VM_USER)@$(VM_HOST) "pkill -f 'java -cp' || true; nohup java -cp /home/$(VM_USER)/app/hello.jar com.example.App > /home/$(VM_USER)/app/output.log 2>&1 &"
+    displayName: "Deploy and Run on Azure VM"
